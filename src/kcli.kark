@@ -125,3 +125,182 @@ public func usage(program, commands) {
 public func describe_command(name, description) {
     return name + " - " + description
 }
+
+// ---------------------------------------------------------------------------
+// Phase 2 additions. Phase 1 signatures and behaviour are unchanged.
+
+// new_registry creates a command registry of [path, description] pairs.
+public func new_registry() {
+    return []
+}
+
+// register_command adds or replaces a command path with a description.
+// A subcommand path uses dotted form, e.g. "users.list".
+public func register_command(registry, path, description) {
+    let out = unregister_command(registry, path)
+    out = push(out, path)
+    out = push(out, description)
+    return out
+}
+
+// unregister_command removes a command path.
+public func unregister_command(registry, path) {
+    let out = []
+    let i = 0
+    while (i < len(registry)) {
+        if registry[i] == path {
+            i = i + 2
+        } else {
+            out = push(out, registry[i])
+            out = push(out, registry[i + 1])
+            i = i + 2
+        }
+    }
+    return out
+}
+
+// command_description returns the description for a path or "".
+public func command_description(registry, path) {
+    let i = 0
+    while (i < len(registry)) {
+        if registry[i] == path {
+            return registry[i + 1]
+        }
+        i = i + 2
+    }
+    return ""
+}
+
+// has_command reports whether a path is registered.
+public func has_command(registry, path) {
+    return command_description(registry, path) != ""
+}
+
+// command_count returns the number of registered paths.
+public func command_count(registry) {
+    return len(registry) / 2
+}
+
+// help_text builds a deterministic multi-command help string using "|"
+// separators because newline escapes are not part of the verified subset.
+public func help_text(registry) {
+    let out = "Commands:"
+    let i = 0
+    while (i < len(registry)) {
+        out = out + "|" + describe_command(registry[i], registry[i + 1])
+        i = i + 2
+    }
+    return out
+}
+
+// completions returns registered paths starting with a prefix.
+public func completions(registry, prefix) {
+    let out = []
+    let i = 0
+    while (i < len(registry)) {
+        let p = registry[i]
+        let n = len(prefix)
+        let matches = true
+        let j = 0
+        while (j < n) {
+            if j >= len(p) {
+                matches = false
+            } else {
+                if p[j] != prefix[j] {
+                    matches = false
+                }
+            }
+            j = j + 1
+        }
+        if matches {
+            out = push(out, p)
+        }
+        i = i + 2
+    }
+    return out
+}
+
+// missing_required counts required flag tokens that are absent.
+public func missing_required(args, required) {
+    let n = 0
+    let i = 0
+    while (i < len(required)) {
+        if has_flag(args, required[i]) == false {
+            n = n + 1
+        }
+        i = i + 1
+    }
+    return n
+}
+
+// new_profiles creates an empty configuration profile store.
+public func new_profiles() {
+    return []
+}
+
+// set_profile adds or replaces a named key/value pair in a profile.
+public func set_profile(profiles, profile, key, value) {
+    let out = []
+    out = push(out, profile)
+    out = push(out, key)
+    out = push(out, value)
+    let i = 0
+    while (i < len(profiles)) {
+        if profiles[i] == profile {
+            if profiles[i + 1] == key {
+                i = i + 3
+            } else {
+                out = push(out, profiles[i])
+                out = push(out, profiles[i + 1])
+                out = push(out, profiles[i + 2])
+                i = i + 3
+            }
+        } else {
+            out = push(out, profiles[i])
+            out = push(out, profiles[i + 1])
+            out = push(out, profiles[i + 2])
+            i = i + 3
+        }
+    }
+    return out
+}
+
+// profile_get returns a configured value or a fallback.
+public func profile_get(profiles, profile, key, fallback) {
+    let i = 0
+    while (i < len(profiles)) {
+        if profiles[i] == profile {
+            if profiles[i + 1] == key {
+                return profiles[i + 2]
+            }
+        }
+        i = i + 3
+    }
+    return fallback
+}
+
+// new_hooks returns an empty command-hook chain.
+public func new_hooks() {
+    return []
+}
+
+// add_hook appends a named hook.
+public func add_hook(hooks, name) {
+    return push(hooks, name)
+}
+
+// run_hooks builds the ordered hook pipeline for a command path.
+public func run_hooks(hooks, path) {
+    let out = ""
+    let i = 0
+    while (i < len(hooks)) {
+        out = out + hooks[i] + ">"
+        i = i + 1
+    }
+    return out + path
+}
+
+// format_table builds a simple pipe-delimited two-column table.
+public func format_table(headers, rows) {
+    return headers[0] + "|" + headers[1] + "|" + rows[0] + "|" + rows[1]
+}

@@ -67,3 +67,66 @@ func test_usage() {
 func test_describe_command() {
     assert_eq(describe_command("greet", "say hello"), "greet - say hello")
 }
+
+// --- Phase 2 regression: Phase 1 API still works ---
+
+func test_phase1_regression() {
+    let args = ["app", "greet", "--name", "Ajit"]
+    assert_eq(command(args), "greet")
+    assert_eq(option_value(args, "--name"), "Ajit")
+    assert(has_flag(args, "--name"))
+    assert_eq(usage("app", ["greet"]), "Usage: app <command> [options] | commands: greet")
+}
+
+// --- Phase 2 additions ---
+
+func test_command_registry() {
+    let r = register_command(new_registry(), "users.list", "list users")
+    r = register_command(r, "users.add", "add user")
+    assert_eq(command_count(r), 2)
+    assert(has_command(r, "users.list"))
+    assert_eq(command_description(r, "users.add"), "add user")
+}
+
+func test_command_registry_replace() {
+    let r = register_command(register_command(new_registry(), "go", "old"), "go", "new")
+    assert_eq(command_count(r), 1)
+    assert_eq(command_description(r, "go"), "new")
+    let x = unregister_command(r, "go")
+    assert_eq(command_count(x), 0)
+}
+
+func test_help_text() {
+    let r = register_command(new_registry(), "go", "build")
+    assert_eq(help_text(r), "Commands:|go - build")
+}
+
+func test_completions() {
+    let r = register_command(register_command(new_registry(), "users.list", "l"), "users.add", "a")
+    let c = completions(r, "users.")
+    assert_eq(len(c), 2)
+    assert_eq(len(completions(r, "missing")), 0)
+}
+
+func test_missing_required() {
+    let args = ["app", "run", "--verbose"]
+    assert_eq(missing_required(args, ["--verbose"]), 0)
+    assert_eq(missing_required(args, ["--verbose", "--force"]), 1)
+}
+
+func test_profiles() {
+    let p = set_profile(set_profile(new_profiles(), "dev", "host", "localhost"), "dev", "port", "8080")
+    assert_eq(profile_get(p, "dev", "host", ""), "localhost")
+    assert_eq(profile_get(p, "dev", "port", "0"), "8080")
+    assert_eq(profile_get(p, "dev", "missing", "fallback"), "fallback")
+}
+
+func test_hooks_pipeline() {
+    let h = add_hook(add_hook(new_hooks(), "auth"), "log")
+    assert_eq(run_hooks(h, "users.list"), "auth>log>users.list")
+    assert_eq(run_hooks(new_hooks(), "go"), "go")
+}
+
+func test_format_table() {
+    assert_eq(format_table(["Name", "Value"], ["host", "local"]), "Name|Value|host|local")
+}

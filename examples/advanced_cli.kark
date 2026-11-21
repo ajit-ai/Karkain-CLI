@@ -1,0 +1,18 @@
+// Karkain-CLI Phase 2 example: registry, help, profiles, hooks and validation.
+import kcli
+
+func main() {
+    let r = new_registry()
+    r = register_command(r, "users.list", "list users")
+    r = register_command(r, "users.add", "add user")
+    println(help_text(r))
+
+    let args = ["app", "users.list", "--verbose"]
+    println("missing=" + str(missing_required(args, ["--verbose", "--force"])))
+
+    let p = set_profile(new_profiles(), "dev", "host", "localhost")
+    println("host=" + profile_get(p, "dev", "host", ""))
+
+    let h = add_hook(add_hook(new_hooks(), "auth"), "log")
+    println(run_hooks(h, "users.list"))
+}

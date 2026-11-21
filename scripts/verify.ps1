@@ -43,7 +43,7 @@ try {
     Write-Output "TEST native: exit=$code"
     Write-Output $out
     if ($code -ne 0) { throw 'native tests failed' }
-    if ($out -notlike '*10 tests, 10 passed, 0 failed*') { throw 'native test summary mismatch' }
+    if ($out -notlike '*19 tests, 19 passed, 0 failed*') { throw 'native test summary mismatch' }
 
     $verify = Join-Path $repo 'src\verify.kark'
     $out = Invoke-Karkain @('run', $verify)
@@ -81,6 +81,16 @@ try {
     if ($out -notlike '*name=Ajit*') { throw 'example option missing' }
     if ($out -notlike '*verbose=true*') { throw 'example flag missing' }
     if ($out -notlike '*known=1*') { throw 'example dispatch missing' }
+
+    $advDir = Join-Path $tmp 'advanced'
+    New-Item -ItemType Directory -Path $advDir | Out-Null
+    Copy-Item -LiteralPath $module -Destination (Join-Path $advDir 'kcli.kark')
+    Copy-Item -LiteralPath (Join-Path $repo 'examples\advanced_cli.kark') -Destination (Join-Path $advDir 'advanced_cli.kark')
+    $out = Invoke-Karkain @('run', (Join-Path $advDir 'advanced_cli.kark')); $code = $LASTEXITCODE
+    Write-Output "RUN advanced example: exit=$code"; Write-Output $out
+    if ($code -ne 0) { throw 'advanced example failed' }
+    if ($out -notlike '*users.list - list users*') { throw 'advanced registry output missing' }
+    if ($out -notlike '*auth>log>users.list*') { throw 'advanced hooks output missing' }
 
     Write-Output 'VERIFY: ALL GATES PASSED'
 }
