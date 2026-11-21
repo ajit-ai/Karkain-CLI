@@ -1,0 +1,89 @@
+#Requires -Version 5.1
+# Karkain-CLI verification gate using the real Karkain v1.2.0 toolchain.
+param(
+    [string]$KarkainSource = 'C:\Windows\Temp\opencode\Karkain-v1.2.0',
+    [string]$KarkainExe    = 'C:\Windows\Temp\opencode\karkain-bin\karkain-v1.2.0-windows-amd64\karkain.exe',
+    [string]$CcDir          = 'C:\msys64\ucrt64\bin'
+)
+
+$ErrorActionPreference = 'Continue'
+$repo = Split-Path -Parent $PSScriptRoot
+
+if (-not (Test-Path -LiteralPath $KarkainSource)) { throw "Karkain source not found: $KarkainSource" }
+if (-not (Test-Path -LiteralPath $KarkainExe)) { throw "Karkain executable not found: $KarkainExe" }
+if (Test-Path -LiteralPath $CcDir) { $env:PATH = "$CcDir;$env:PATH" }
+
+$enc = New-Object System.Text.UTF8Encoding($false)
+$tmp = Join-Path ([System.IO.Path]::GetTempPath()) ('kcli-verify-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $tmp | Out-Null
+
+function Invoke-Karkain {
+    param([string[]]$CmdArgs)
+    Push-Location $KarkainSource
+    try {
+        & $KarkainExe @CmdArgs 2>&1 |
+            Where-Object { $_ -notmatch 'undefined reference|collect2|ld returned 1 exit status' } |
+            Out-String
+    } finally { Pop-Location }
+}
+
+try {
+    $module = Join-Path $repo 'src\kcli.kark'
+
+    $out = Invoke-Karkain @('check', $module)
+    $code = $LASTEXITCODE
+    Write-Output "CHECK module: exit=$code"
+    if ($code -ne 0) { Write-Output $out; throw 'module check failed' }
+
+    $tests = Join-Path $repo 'tests\api_tests.kark'
+    $combined = Join-Path $tmp 'kcli_suite_test.kark'
+    [System.IO.File]::WriteAllText($combined, (Get-Content -LiteralPath $module -Raw) + "`n" + (Get-Content -LiteralPath $tests -Raw), $enc)
+    $out = Invoke-Karkain @('test', $combined)
+    $code = $LASTEXITCODE
+    Write-Output "TEST native: exit=$code"
+    Write-Output $out
+    if ($code -ne 0) { throw 'native tests failed' }
+    if ($out -notlike '*10 tests, 10 passed, 0 failed*') { throw 'native test summary mismatch' }
+
+    $verify = Join-Path $repo 'src\verify.kark'
+    $out = Invoke-Karkain @('run', $verify)
+    $code = $LASTEXITCODE
+    Write-Output "RUN integration: exit=$code"
+    Write-Output $out
+    if ($code -ne 0) { throw 'integration failed' }
+    if ($out -notlike '*Usage: app.exe*') { throw 'integration usage missing' }
+    if ($out -notlike '*greet - say hello*') { throw 'integration description missing' }
+
+    $neg = Join-Path $tmp 'negative_test.kark'
+    [System.IO.File]::WriteAllText($neg, "func test_expected_failure() {`n    assert(false)`n}`n", $enc)
+    $null = Invoke-Karkain @('test', $neg)
+    $code = $LASTEXITCODE
+    Write-Output "TEST negative-gate: exit=$code (expected 4)"
+    if ($code -ne 4) { throw 'negative gate failed' }
+
+    # Native executable consuming real process arguments via getArgs().
+    $exDir = Join-Path $tmp 'example'
+    New-Item -ItemType Directory -Path $exDir | Out-Null
+    Copy-Item -LiteralPath $module -Destination (Join-Path $exDir 'kcli.kark')
+    Copy-Item -LiteralPath (Join-Path $repo 'examples\cli_demo.kark') -Destination (Join-Path $exDir 'cli_demo.kark')
+    $bin = Join-Path $exDir 'cli_demo.exe'
+    $out = Invoke-Karkain @('build', (Join-Path $exDir 'cli_demo.kark'), '-o', $bin)
+    $code = $LASTEXITCODE
+    Write-Output "BUILD example: exit=$code"
+    if ($code -ne 0) { Write-Output $out; throw 'example build failed' }
+
+    $out = & $bin greet --name Ajit --verbose 2>&1 | Out-String
+    $code = $LASTEXITCODE
+    Write-Output "RUN example binary: exit=$code"
+    Write-Output $out
+    if ($code -ne 0) { throw 'example binary failed' }
+    if ($out -notlike '*command=greet*') { throw 'example command missing' }
+    if ($out -notlike '*name=Ajit*') { throw 'example option missing' }
+    if ($out -notlike '*verbose=true*') { throw 'example flag missing' }
+    if ($out -notlike '*known=1*') { throw 'example dispatch missing' }
+
+    Write-Output 'VERIFY: ALL GATES PASSED'
+}
+finally {
+    try { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue } catch { }
+}

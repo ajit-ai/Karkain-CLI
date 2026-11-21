@@ -1,0 +1,69 @@
+// Native tests for Karkain-CLI. No imports: scripts/verify.ps1 prepends the
+// real module source before running `karkain test`.
+
+func sample_args() {
+    return ["app.exe", "greet", "--name", "Ajit", "extra", "--verbose"]
+}
+
+func test_is_option() {
+    assert(is_option("--name"))
+    assert(is_option("-v"))
+    assert(is_option("greet") == false)
+    assert(is_option("") == false)
+}
+
+func test_command() {
+    assert_eq(command(sample_args()), "greet")
+    assert_eq(command(["app.exe"]), "")
+    assert_eq(command([]), "")
+}
+
+func test_has_flag() {
+    assert(has_flag(sample_args(), "--verbose"))
+    assert(has_flag(sample_args(), "--quiet") == false)
+    assert(has_flag(["app.exe", "--name", "--verbose"], "--verbose"))
+}
+
+func test_option_value() {
+    assert_eq(option_value(sample_args(), "--name"), "Ajit")
+    assert_eq(option_value(sample_args(), "--missing"), "")
+    assert_eq(option_value(["app.exe", "--name"], "--name"), "")
+}
+
+func test_positional_count() {
+    assert_eq(positional_count(sample_args()), 3)
+    assert_eq(positional_count(["app.exe", "--verbose"]), 0)
+    assert_eq(positional_count([]), 0)
+}
+
+func test_positional() {
+    assert_eq(positional(sample_args(), 0), "greet")
+    assert_eq(positional(sample_args(), 1), "Ajit")
+    assert_eq(positional(sample_args(), 2), "extra")
+    assert_eq(positional(sample_args(), 9), "")
+}
+
+func test_positional_skips_flags() {
+    let a = ["app.exe", "--verbose", "first", "--name", "Ajit", "second"]
+    assert_eq(positional_count(a), 3)
+    assert_eq(positional(a, 0), "first")
+    assert_eq(positional(a, 1), "Ajit")
+    assert_eq(positional(a, 2), "second")
+}
+
+func test_command_index() {
+    let commands = ["greet", "list", "quit"]
+    assert_eq(command_index(commands, "greet"), 0)
+    assert_eq(command_index(commands, "list"), 1)
+    assert_eq(command_index(commands, "quit"), 2)
+    assert_eq(command_index(commands, "unknown"), -1)
+}
+
+func test_usage() {
+    let commands = ["greet", "list"]
+    assert_eq(usage("app.exe", commands), "Usage: app.exe <command> [options] | commands: greet list")
+}
+
+func test_describe_command() {
+    assert_eq(describe_command("greet", "say hello"), "greet - say hello")
+}

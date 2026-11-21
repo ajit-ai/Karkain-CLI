@@ -1,0 +1,127 @@
+// Karkain-CLI - command-line application construction helpers.
+// Compatible with Karkain Language v1.2.0 (verified tag v1.2.0,
+// commit 77d70693e1e3134dac312a303bffafa7d50fa988).
+//
+// Scope boundary: the Karkain CLI toolchain itself is part of the language
+// distribution. This module does not reimplement it and does not modify
+// compiler flags. It supplies small, portable building blocks for the
+// argument surface of a Karkain command-line program: token classification,
+// command and option extraction, positional access, command lookup and
+// usage formatting.
+//
+// Canonical v1.2.0 subset: untyped params, no type annotations, no structs,
+// no imports inside this module, arrays, strings, while/if, len/str/println.
+
+// process_args returns the real process argument vector. In a binary built
+// with `karkain build`, index 0 is the executable path. Under `karkain run`
+// the toolchain does not forward extra arguments, so callers can also pass
+// their own array to every other function in this module.
+public func process_args() {
+    return getArgs()
+}
+
+// is_option reports whether a token looks like an option (starts with '-').
+public func is_option(token) {
+    if len(token) > 0 {
+        if token[0] == "-" {
+            return true
+        }
+    }
+    return false
+}
+
+// command returns the command token, i.e. the first argument after the
+// program name. Returns "" when no command was supplied.
+public func command(args) {
+    if len(args) > 1 {
+        return args[1]
+    }
+    return ""
+}
+
+// has_flag reports whether the exact flag token is present.
+public func has_flag(args, flag) {
+    let i = 1
+    while (i < len(args)) {
+        if args[i] == flag {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
+// option_value returns the token following `name`, or "" when `name` is
+// absent or has no following token.
+public func option_value(args, name) {
+    let i = 1
+    while (i < len(args)) {
+        if args[i] == name {
+            if i + 1 < len(args) {
+                return args[i + 1]
+            }
+        }
+        i = i + 1
+    }
+    return ""
+}
+
+// positional_count counts non-option arguments after the program name.
+public func positional_count(args) {
+    let n = 0
+    let i = 1
+    while (i < len(args)) {
+        if is_option(args[i]) == false {
+            n = n + 1
+        }
+        i = i + 1
+    }
+    return n
+}
+
+// positional returns the nth non-option argument after the program name.
+// Returns "" when the index is out of range.
+public func positional(args, n) {
+    let found = 0
+    let i = 1
+    while (i < len(args)) {
+        if is_option(args[i]) == false {
+            if found == n {
+                return args[i]
+            }
+            found = found + 1
+        }
+        i = i + 1
+    }
+    return ""
+}
+
+// command_index returns the index of cmd in a command list, or -1 when the
+// command is unknown. Callers use the index to select their own handler.
+public func command_index(commands, cmd) {
+    let i = 0
+    while (i < len(commands)) {
+        if commands[i] == cmd {
+            return i
+        }
+        i = i + 1
+    }
+    return -1
+}
+
+// usage builds a single-line usage string from a program name and a list of
+// command names.
+public func usage(program, commands) {
+    let out = "Usage: " + program + " <command> [options] | commands:"
+    let i = 0
+    while (i < len(commands)) {
+        out = out + " " + commands[i]
+        i = i + 1
+    }
+    return out
+}
+
+// describe_command builds a one-line description for help output.
+public func describe_command(name, description) {
+    return name + " - " + description
+}

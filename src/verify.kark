@@ -1,0 +1,18 @@
+// Integration verification for the Karkain-CLI public API.
+import kcli
+
+func main() {
+    let args = ["app.exe", "greet", "--name", "Ajit", "--verbose"]
+    assert_eq(kcli.command(args), "greet")
+    assert(kcli.has_flag(args, "--verbose"))
+    assert_eq(kcli.option_value(args, "--name"), "Ajit")
+    assert_eq(kcli.positional_count(args), 2)
+    assert_eq(kcli.positional(args, 0), "greet")
+
+    let commands = ["greet", "list"]
+    assert_eq(kcli.command_index(commands, kcli.command(args)), 0)
+    assert_eq(kcli.command_index(commands, "missing"), -1)
+
+    println(kcli.usage("app.exe", commands))
+    println(kcli.describe_command("greet", "say hello"))
+}

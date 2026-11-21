@@ -1,0 +1,16 @@
+// Karkain-CLI runnable example.
+// Build to a native executable and pass real process arguments:
+//   karkain build cli_demo.kark -o cli_demo.exe
+//   cli_demo.exe greet --name Ajit --verbose
+// scripts\verify.ps1 stages kcli.kark beside this file automatically.
+import kcli
+
+func main() {
+    let args = kcli.process_args()
+    let commands = ["greet", "list", "quit"]
+
+    println("command=" + kcli.command(args))
+    println("name=" + kcli.option_value(args, "--name"))
+    println("verbose=" + str(kcli.has_flag(args, "--verbose")))
+    println("known=" + str(kcli.command_index(commands, kcli.command(args)) >= 0))
+}
